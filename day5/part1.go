@@ -9,9 +9,9 @@ import (
 )
 
 type Range struct {
-	dst uint32
-	src uint32
-	len uint32
+	src   uint32
+	len   uint32
+	delta uint32
 }
 
 func Btou32(bs []byte) uint32 {
@@ -63,15 +63,6 @@ loop:
 	return backing, advance
 }
 
-func Convert(n uint32, table []Range) uint32 {
-	for i := range table {
-		if n >= table[i].src && n < table[i].src+table[i].len {
-			return n - table[i].src + table[i].dst
-		}
-	}
-	return n
-}
-
 func main() {
 	filename := flag.String("i", "input", "input file")
 	flag.Parse()
@@ -88,14 +79,33 @@ func main() {
 
 		for i := 0; i+3 <= len(numbers); i += 3 {
 			table = append(table, Range{
-				dst: numbers[i+0],
-				src: numbers[i+1],
-				len: numbers[i+2],
+				src:   numbers[i+1],
+				len:   numbers[i+2],
+				delta: numbers[i+0] - numbers[i+1],
 			})
 		}
 
-		for i := range seeds {
-			seeds[i] = Convert(seeds[i], table)
+		slices.SortFunc(table, func(r1, r2 Range) int {
+			if r1.src < r2.src {
+				return -1
+			}
+			return 1
+		})
+
+		for i, seed := range seeds {
+			j, found := slices.BinarySearchFunc(table, seeds[i], func(r Range, n uint32) int {
+				switch {
+				case n < r.src:
+					return 1
+				case n >= r.src+r.len:
+					return -1
+				default:
+					return 0
+				}
+			})
+			if found {
+				seeds[i] = seed + table[j].delta
+			}
 		}
 	}
 
